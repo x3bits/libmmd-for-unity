@@ -1,0 +1,14 @@
+Library/
+Temp/
+libs/
+objs/
+obj/
+bin/
+out/
+
+*.apk
+*.app
+.idea
+*.iml
+*.apk
+*.meta
