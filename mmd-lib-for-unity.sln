@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mmd-lib-for-unity", "Assembly-CSharp.csproj", "{32900406-0A0E-2247-EAE7-9F502074F58E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mmd-lib-for-unity", "Assembly-CSharp-Editor-firstpass.csproj", "{F2ADE29E-2490-8017-8DF2-27A02FDB58D9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{32900406-0A0E-2247-EAE7-9F502074F58E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32900406-0A0E-2247-EAE7-9F502074F58E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32900406-0A0E-2247-EAE7-9F502074F58E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32900406-0A0E-2247-EAE7-9F502074F58E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F2ADE29E-2490-8017-8DF2-27A02FDB58D9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F2ADE29E-2490-8017-8DF2-27A02FDB58D9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F2ADE29E-2490-8017-8DF2-27A02FDB58D9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F2ADE29E-2490-8017-8DF2-27A02FDB58D9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		StartupItem = Assembly-CSharp.csproj
+	EndGlobalSection
+EndGlobal
