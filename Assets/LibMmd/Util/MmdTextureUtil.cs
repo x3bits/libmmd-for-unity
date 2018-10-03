@@ -21,9 +21,9 @@ namespace LibMMD.Util
 
         public static MmdTexture GetGlobalToon(int index, string rootPath)
         {
-            if (index >= 0 && index < GlobalToonNames.Length)
+            if (index >= 0 && index < GlobalToonNames.Length - 1)
             {
-                return new MmdTexture(GlobalToonNames[index]);
+                return new MmdTexture(GlobalToonNames[index + 1]);
             }
             return null;
         }

@@ -2,7 +2,7 @@
 {
     public enum MmdConfigSwitch
     {
-        AsConfig=0, //as the config of the model file
+        AsConfig=0,
         ForceTrue=1,
         ForceFalse=2
     }

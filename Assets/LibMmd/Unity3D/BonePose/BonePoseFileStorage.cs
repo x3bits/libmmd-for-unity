@@ -31,7 +31,7 @@ namespace LibMMD.Unity3D.BonePose
             Release();
             try
             {
-                _fileStream = new FileStream(path, FileMode.Open);
+                _fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
                 _bufferedStream = new BufferedStream(_fileStream, BufferSize);
                 _reader = new BinaryReader(_bufferedStream);
             }

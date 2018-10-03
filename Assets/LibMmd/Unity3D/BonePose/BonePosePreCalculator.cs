@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading;
 using LibMMD.Model;
 using LibMMD.Motion;
@@ -21,51 +22,53 @@ namespace LibMMD.Unity3D.BonePose
                 PoseImages = poseImages;
             }
         }
-        
+
+        private readonly BonePoseCalculatorWorker _worker;
         private readonly Poser _poser;
         private readonly BulletPyhsicsReactor _physicsReactor;
         private readonly MotionPlayer _motionPlayer;
-        private readonly double _stepLength;
-        private double _timePos;
+        private readonly float _stepLength;
+        private volatile float _timePos;
         private volatile float _timePosOut;
-        private double _takeTimePos;
+        private volatile float _takeTimePos;
         private readonly object _takePosLock = new object();
-        private volatile BlockingQueue<BonePoseFrame> _bonePoseImagesStore;
+        private volatile SynchronizedQueue<BonePoseFrame> _bonePoseImagesStore;
         private volatile bool _stopped;
         private readonly bool _autoStepLength;
+        private readonly int _frameCacheSize;
         private volatile float _lastMissedPos = -1.0f;
         private readonly bool _poseMode;
-        private volatile Thread _thread;
 
-        public BonePosePreCalculator(Poser poser, BulletPyhsicsReactor physicsReactor, MotionPlayer motionPlayer, double stepLength, double startTimePos, int frameCacheSize, bool autoStepLength)
+        public BonePosePreCalculator(BonePoseCalculatorWorker worker, Poser poser, BulletPyhsicsReactor physicsReactor, MotionPlayer motionPlayer, float stepLength, float startTimePos, int frameCacheSize, bool autoStepLength)
         {
             _poseMode = false;
             _poser = poser;
             _physicsReactor = physicsReactor;
             _motionPlayer = motionPlayer;
             _stepLength = stepLength;
-            _bonePoseImagesStore = new BlockingQueue<BonePoseFrame>(frameCacheSize);
+            _bonePoseImagesStore = new SynchronizedQueue<BonePoseFrame>();
             _timePos = startTimePos;
             _autoStepLength = autoStepLength;
-            
+            _frameCacheSize = frameCacheSize;
             _motionPlayer.SeekTime(startTimePos);
             _poser.PrePhysicsPosing();
             _physicsReactor.Reset();
             _poser.PostPhysicsPosing();
             var image = GetBonePoseImage(_poser);
             _bonePoseImagesStore.Enqueue(new BonePoseFrame(startTimePos, image));
+            _worker = worker;
         }
 
-        public BonePosePreCalculator(MmdPose pose, Poser poser, BulletPyhsicsReactor physicsReactor, double stepLength,double startTimePos, int frameCacheSize, bool autoStepLength)
+        public BonePosePreCalculator(BonePoseCalculatorWorker worker, MmdPose pose, Poser poser, BulletPyhsicsReactor physicsReactor, float stepLength,float startTimePos, int frameCacheSize, bool autoStepLength)
         {
             _poseMode = true;
             _poser = poser;
             _physicsReactor = physicsReactor;
             _stepLength = stepLength;
-            _bonePoseImagesStore = new BlockingQueue<BonePoseFrame>(frameCacheSize);
+            _bonePoseImagesStore = new SynchronizedQueue<BonePoseFrame>();
             _timePos = startTimePos;
             _autoStepLength = autoStepLength;
-
+            _frameCacheSize = frameCacheSize;
             poser.ResetPosing();
             SetPoseToPoser(pose, _poser);
             _poser.PrePhysicsPosing();
@@ -73,6 +76,7 @@ namespace LibMMD.Unity3D.BonePose
             _poser.PostPhysicsPosing();
             var image = GetBonePoseImage(_poser);
             _bonePoseImagesStore.Enqueue(new BonePoseFrame(startTimePos, image));
+            _worker = worker;
         }
 
         private void SetPoseToPoser(MmdPose pose, Poser poser)
@@ -115,21 +119,17 @@ namespace LibMMD.Unity3D.BonePose
         {
             lock (this)
             {
-                if (_thread != null)
-                {
-                    throw new InvalidOperationException("thread already started");
-                }
-                var thread = new Thread(Run);
-                _thread = thread;
-                thread.Start();
+                _worker.Start(this);
             }
         }
 
         public void Stop()
         {
-            _stopped = true;
-            _bonePoseImagesStore.DequeueNonBlocking();//防止计算线程卡在入队处
-            _thread.Join();
+            lock (this)
+            {
+                _stopped = true;
+                _worker.Stop(this);
+            }
         }
 
         /*
@@ -148,7 +148,8 @@ namespace LibMMD.Unity3D.BonePose
                 BonePoseFrame lastTookBonePoseImage = null;
                 while (true)
                 {
-                    var bonePoseImage = _bonePoseImagesStore.DequeueNonBlocking();
+                    var bonePoseImage = _bonePoseImagesStore.Take();
+                    _worker.NotifyTake(this);
                     if (bonePoseImage == null)
                     {
                         notCaculatedYet = true;
@@ -157,7 +158,7 @@ namespace LibMMD.Unity3D.BonePose
                         return lastTookBonePoseImage == null ? null : lastTookBonePoseImage.PoseImages;
                     }
                     lastTookBonePoseImage = bonePoseImage;
-                    _takeTimePos = bonePoseImage.TimePos;
+                    _takeTimePos = (float) bonePoseImage.TimePos;
                     if (_takeTimePos + _stepLength / 2 >=  timePos)
                     {
                         returnPos = _takeTimePos;
@@ -180,8 +181,12 @@ namespace LibMMD.Unity3D.BonePose
             }
         }
 
-        private void Step()
+        public bool Step()
         {
+            if (_bonePoseImagesStore.Count() >= _frameCacheSize)
+            {
+                return false;
+            }
             var actualStepLength = _stepLength;
             _timePos += _stepLength;
             if (_autoStepLength && _timePos < _lastMissedPos)
@@ -196,12 +201,13 @@ namespace LibMMD.Unity3D.BonePose
             }
             _poser.PrePhysicsPosing(false);
             //var tickCount = Environment.TickCount;
-            _physicsReactor.React((float) actualStepLength, 2, (float) actualStepLength);
+            _physicsReactor.React(actualStepLength, 2, actualStepLength);
             //Debug.LogFormat("{0} ms for physics", Environment.TickCount - tickCount);
             _poser.PostPhysicsPosing();
             var image = GetBonePoseImage(_poser);
-            var cachedCount = _bonePoseImagesStore.Enqueue(new BonePoseFrame(_timePos, image));
+            _bonePoseImagesStore.Enqueue(new BonePoseFrame(_timePos, image));
             //Debug.LogFormat("{0} frames in pose cache", cachedCount);
+            return true;
         }
         
         public static BonePoseImage[] GetBonePoseImage(Poser poser)

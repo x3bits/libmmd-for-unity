@@ -105,6 +105,7 @@ namespace LibMMD.Unity3D
             }
             if (!File.Exists(path))
             {
+                Debug.LogFormat("texture file not exists {0}", path);
                 return null;
             }
             try

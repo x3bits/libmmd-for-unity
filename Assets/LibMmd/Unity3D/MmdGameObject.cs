@@ -14,10 +14,36 @@ namespace LibMMD.Unity3D
 {
     public class MmdGameObject : MonoBehaviour
     {
+        private static readonly BonePoseCalculatorWorker BonePoseCalculatorWorker = new BonePoseCalculatorWorker();
+        
+        public enum MmdEvent
+        {
+            SlowPoseCalculation
+        }
+        public delegate void MmdEventDelegate(MmdEvent mmdEvent);
         public bool AutoPhysicsStepLength = true;
         public bool Playing;
-        public int PhysicsCacheFrameSize = 60;
+        public int PhysicsCacheFrameSize = 300;
         public PhysicsModeEnum PhysicsMode = PhysicsModeEnum.Bullet;
+        public float PhysicsFps = 120.0f;
+        
+        public MmdEventDelegate OnMmdEvent { get; set; }
+
+        public string ModelName
+        {
+            get { return _model.Name; }
+        }
+
+        public string ModelPath { get; private set; }
+        public string MotionPath { get; private set; }
+        public string BonePoseFilePath { get; private set; }
+
+        public MmdGameObject()
+        {
+            ModelPath = null;
+            MotionPath = null;
+            OnMmdEvent = mmdEvent => { };
+        }
 
         public Mesh Mesh { get; private set; }
         public List<Mesh> PartMeshes { get; private set; }
@@ -78,6 +104,7 @@ namespace LibMMD.Unity3D
 
         public bool LoadModel(string path)
         {
+            ModelPath = path;
             try
             {
                 DoLoadModel(path);
@@ -93,7 +120,7 @@ namespace LibMMD.Unity3D
                 _bonePoseFileStorage.Release();
                 _bonePoseFileStorage = null;
             }
-            
+
             Utils.ClearAllTransformChild(transform);
             _bones = CreateBones(gameObject);
             if (PhysicsMode == PhysicsModeEnum.Unity)
@@ -123,42 +150,45 @@ namespace LibMMD.Unity3D
                 ResetMotionPlayer();
             }
             _playTime = 0.0;
-            RestartBonePoseCalculation();
+            RestartBonePoseCalculation(0.0f, 1 / PhysicsFps);
             UpdateBones();
             return true;
         }
 
-        private void RestartBonePoseCalculation(double startTimePos = 0.0, double stepLength = 1 / 60.0f)
+        private void RestartBonePoseCalculation(double startTimePos, double stepLength)
         {
             StopBonePoseCalculation();
             StartBonePoseCalculation(startTimePos, stepLength);
         }
 
-        private void RestartBonePoseCalculation(MmdPose pose, double stepLength = 1 / 60.0f)
+        private void RestartBonePoseCalculation(MmdPose pose, double stepLength)
         {
             StopBonePoseCalculation();
             StartBonePoseCalculation(pose, stepLength);
         }
 
-        private void StartBonePoseCalculation(double startTimePos = 0.0, double stepLength = 1 / 60.0f)
+        private void StartBonePoseCalculation(double startTimePos, double stepLength)
         {
-            if (PhysicsMode != PhysicsModeEnum.Bullet || _poser == null || _motionPlayer == null || _physicsReactor == null)
+            if (PhysicsMode != PhysicsModeEnum.Bullet || _poser == null || _motionPlayer == null ||
+                _physicsReactor == null)
             {
                 return;
             }
             _bonePosePreCalculator =
-                new BonePosePreCalculator(_poser, _physicsReactor, _motionPlayer, stepLength, startTimePos, PhysicsCacheFrameSize, AutoPhysicsStepLength);
+                new BonePosePreCalculator(BonePoseCalculatorWorker, _poser, _physicsReactor, _motionPlayer, (float)stepLength, (float)startTimePos,
+                    PhysicsCacheFrameSize, AutoPhysicsStepLength);
             _bonePosePreCalculator.Start();
         }
 
-        private void StartBonePoseCalculation(MmdPose pose, double stepLength = 1 / 60.0f)
+        private void StartBonePoseCalculation(MmdPose pose, double stepLength)
         {
             if (PhysicsMode != PhysicsModeEnum.Bullet || _model == null || _physicsReactor == null)
             {
                 return;
             }
-            _bonePosePreCalculator = 
-                new BonePosePreCalculator(pose,_poser, _physicsReactor, stepLength, 0.0, PhysicsCacheFrameSize, AutoPhysicsStepLength);
+            _bonePosePreCalculator =
+                new BonePosePreCalculator(BonePoseCalculatorWorker, pose, _poser, _physicsReactor, (float)stepLength, 0.0f, PhysicsCacheFrameSize,
+                    AutoPhysicsStepLength);
             _bonePosePreCalculator.Start();
         }
 
@@ -181,32 +211,46 @@ namespace LibMMD.Unity3D
             {
                 throw new InvalidOperationException("model not loaded yet");
             }
+            ReleaseBonePoseFile();
+            MotionPath = path;
             LoadMotionKernal(path);
             _playTime = 0.0;
             UpdateBones();
             UpdateMesh(_playTime);
-            RestartBonePoseCalculation(_playTime);
+            RestartBonePoseCalculation(_playTime, 1.0f / PhysicsFps);
         }
 
         public void LoadPose(string path)
         {
+            MotionPath = path;
+            ReleaseBonePoseFile();
             var pose = VpdReader.Read(path);
             _playTime = 0.0;
             UpdateBones();
             ResetMesh();
-            RestartBonePoseCalculation(pose);
+            RestartBonePoseCalculation(pose, 1.0f / PhysicsFps);
         }
 
         public void LoadBonePoseFile(string path)
         {
+            BonePoseFilePath = path;
             if (_model == null)
             {
                 Debug.LogWarning("model not loaded yet, skip LoadBonePoseFile");
                 return;
             }
+            ReleaseBonePoseFile();
             _bonePoseFileStorage = new BonePoseFileStorage(_model, path);
             StopBonePoseCalculation();
         }
+
+        private void ReleaseBonePoseFile()
+        {
+            if (_bonePoseFileStorage == null) return;
+            _bonePoseFileStorage.Release();
+            _bonePoseFileStorage = null;
+            BonePoseFilePath = null;
+        } 
 
         public double MotionPos
         {
@@ -225,9 +269,9 @@ namespace LibMMD.Unity3D
             if (_bonePoseFileStorage != null)
             {
                 var poses = _bonePoseFileStorage.GetBonePose(_playTime);
-                var start = Environment.TickCount;
+                //var start = Environment.TickCount;
                 UpdateBonesByBonePoseImage(poses);
-                Debug.LogFormat("read pose from file cost {0} ms", Environment.TickCount - start);
+                //Debug.LogFormat("read pose from file cost {0} ms", Environment.TickCount - start);
                 UpdateMesh(_playTime);
             }
             else if (PhysicsMode == PhysicsModeEnum.Bullet)
@@ -253,7 +297,6 @@ namespace LibMMD.Unity3D
                 }
                 UpdateMesh(_playTime);
             }
-
         }
 
         private void OnDestroy()
@@ -268,7 +311,7 @@ namespace LibMMD.Unity3D
             var modelRootTransform = new GameObject("Model").transform;
             for (var i = 0; i < partMeshes.Count; i++)
             {
-                var part = newMeshPart();
+                var part = newMeshPart("Part" + i);
                 part.GetComponent<MeshFilter>().mesh = partMeshes[i];
                 var skinnedMeshRenderer = part.GetComponent<SkinnedMeshRenderer>();
                 skinnedMeshRenderer.rootBone = modelRootTransform;
@@ -278,9 +321,9 @@ namespace LibMMD.Unity3D
             }
         }
 
-        private GameObject newMeshPart()
+        private GameObject newMeshPart(string partName)
         {
-            var ret = new GameObject();
+            var ret = new GameObject(partName);
             ret.AddComponent<MeshFilter>();
             ret.AddComponent<SkinnedMeshRenderer>();
             return ret;
@@ -290,6 +333,7 @@ namespace LibMMD.Unity3D
         {
             ReleasePreviousMaterials();
             _materials = LoadMaterials(_config);
+            ReorderRender(_materials);
         }
 
         private void ReleasePreviousMaterials()
@@ -495,7 +539,7 @@ namespace LibMMD.Unity3D
             _poser.PostPhysicsPosing();
         }
 
-        private void Step(double time, float fixStepTime = 1.0f / 60.0f, int maxStep = 10)
+        private void Step(double time, float fixStepTime, int maxStep = 10)
         {
             if (time <= 0.0f)
             {
@@ -571,7 +615,10 @@ namespace LibMMD.Unity3D
             var poses = _bonePosePreCalculator.Take(timePos, out notCalculatedYet, out poseTime);
             if (notCalculatedYet)
             {
+                #if UNITY_EDITOR
                 Debug.LogFormat("pose calculation too slow");
+                #endif
+                OnMmdEvent(MmdEvent.SlowPoseCalculation);
             }
             if (poses == null)
             {
@@ -721,7 +768,7 @@ namespace LibMMD.Unity3D
                 _bonePoseFileStorage.Release();
                 _bonePoseFileStorage = null;
             }
-            
+
             StopBonePoseCalculation();
         }
 
@@ -738,7 +785,9 @@ namespace LibMMD.Unity3D
             _poser.PrePhysicsPosing();
             _physicsReactor.Reset();
             _poser.PostPhysicsPosing();
-            StartBonePoseCalculation();
+            StartBonePoseCalculation(0.0, 1.0f / PhysicsFps);
+            UpdateMesh(_playTime);
+            UpdateBones();
             //_poser.Deform();
         }
 
@@ -756,7 +805,7 @@ namespace LibMMD.Unity3D
             _poser.PrePhysicsPosing();
             _physicsReactor.Reset();
             _poser.PostPhysicsPosing();
-            StartBonePoseCalculation();
+            StartBonePoseCalculation(0.0, 1.0f / PhysicsFps);
             //_poser.Deform();
         }
 
@@ -867,7 +916,6 @@ namespace LibMMD.Unity3D
             var groupTarget = GetRigidbodyGroupTargets();
 
             IgnoreCollisions(rigids, groupTarget, ignoreGroups);
-            
         }
 
         private GameObject[] CreateRigids()
@@ -985,13 +1033,16 @@ namespace LibMMD.Unity3D
             result = int.MaxValue;
             return result;
         }
-        
+
         private void SetRigidsSettings(GameObject[] bones, GameObject[] rigid)
         {
             var boneCount = _model.Bones.Length;
-            for (int i = 0, iMax = _model.Rigidbodies.Length; i < iMax; ++i) {
+            for (int i = 0, iMax = _model.Rigidbodies.Length; i < iMax; ++i)
+            {
                 var mmdRigidBody = _model.Rigidbodies[i];
-                var target = mmdRigidBody.AssociatedBoneIndex < boneCount ? bones[mmdRigidBody.AssociatedBoneIndex] : rigid[i];
+                var target = mmdRigidBody.AssociatedBoneIndex < boneCount
+                    ? bones[mmdRigidBody.AssociatedBoneIndex]
+                    : rigid[i];
                 UnityRigidbodySetting(mmdRigidBody, target);
             }
         }
@@ -999,7 +1050,7 @@ namespace LibMMD.Unity3D
         private void SetBoneKinematicFlags()
         {
             _bonePhysicsControlFlags = new bool[_bones.Length];
-            for (int i=0, iMax = _bones.Length;i<iMax;i++)
+            for (int i = 0, iMax = _bones.Length; i < iMax; i++)
             {
                 var bone = _bones[i];
                 var boneRigidbody = bone.GetComponent<Rigidbody>();
@@ -1011,17 +1062,20 @@ namespace LibMMD.Unity3D
                 {
                     _bonePhysicsControlFlags[i] = true;
                 }
-            } 
+            }
         }
-        
+
         private static void UnityRigidbodySetting(MmdRigidBody mmdRigidBody, GameObject target)
         {
             var unityRigidBody = target.GetComponent<Rigidbody>();
-            if (null != unityRigidBody) {
+            if (null != unityRigidBody)
+            {
                 unityRigidBody.mass += mmdRigidBody.Mass;
                 unityRigidBody.drag = (unityRigidBody.drag + mmdRigidBody.TranslateDamp) * 0.5f;
                 unityRigidBody.angularDrag = (unityRigidBody.angularDrag + mmdRigidBody.RotateDamp) * 0.5f;
-            } else {
+            }
+            else
+            {
                 unityRigidBody = target.AddComponent<Rigidbody>();
                 unityRigidBody.isKinematic = MmdRigidBody.RigidBodyType.RigidTypeKinematic == mmdRigidBody.Type;
                 unityRigidBody.mass = Mathf.Max(float.Epsilon, mmdRigidBody.Mass);
@@ -1029,112 +1083,143 @@ namespace LibMMD.Unity3D
                 unityRigidBody.angularDrag = mmdRigidBody.RotateDamp;
             }
         }
-        
+
         private GameObject[] SetupConfigurableJoint(GameObject[] rigids)
         {
             var resultList = new List<GameObject>();
-            foreach (var joint in _model.Constraints) {
+            foreach (var joint in _model.Constraints)
+            {
                 var transformA = rigids[joint.AssociatedRigidBodyIndex[0]].transform;
                 var rigidbodyA = transformA.GetComponent<Rigidbody>();
-                if (null == rigidbodyA) { 
+                if (null == rigidbodyA)
+                {
                     rigidbodyA = transformA.parent.GetComponent<Rigidbody>();
                 }
                 var transformB = rigids[joint.AssociatedRigidBodyIndex[1]].transform;
                 var rigidbodyB = transformB.GetComponent<Rigidbody>();
-                if (null == rigidbodyB) {
+                if (null == rigidbodyB)
+                {
                     rigidbodyB = transformB.parent.GetComponent<Rigidbody>();
                 }
                 if (rigidbodyA == rigidbodyB) continue;
                 var configJoint = rigidbodyB.gameObject.AddComponent<ConfigurableJoint>();
                 configJoint.connectedBody = rigidbodyA;
                 SetAttributeConfigurableJoint(joint, configJoint);
-					
+
                 resultList.Add(configJoint.gameObject);
             }
             return resultList.ToArray();
         }
-        
+
         private void SetAttributeConfigurableJoint(Constraint joint, ConfigurableJoint conf)
         {
             SetMotionAngularLock(joint, conf);
             SetDrive(joint, conf);
         }
-        
+
         private static void SetMotionAngularLock(Constraint joint, ConfigurableJoint conf)
-		{
-			SoftJointLimit jlim;
+        {
+            SoftJointLimit jlim;
 
-			if (Math.Abs(joint.PositionLowLimit.x) < Tools.MmdMathConstEps && Math.Abs(joint.PositionHiLimit.x) < Tools.MmdMathConstEps) {
-				conf.xMotion = ConfigurableJointMotion.Locked;
-			} else {
-				conf.xMotion = ConfigurableJointMotion.Limited;
-			}
+            if (Math.Abs(joint.PositionLowLimit.x) < Tools.MmdMathConstEps &&
+                Math.Abs(joint.PositionHiLimit.x) < Tools.MmdMathConstEps)
+            {
+                conf.xMotion = ConfigurableJointMotion.Locked;
+            }
+            else
+            {
+                conf.xMotion = ConfigurableJointMotion.Limited;
+            }
 
-			if (Math.Abs(joint.PositionLowLimit.y) < Tools.MmdMathConstEps && Math.Abs(joint.PositionHiLimit.y) < Tools.MmdMathConstEps) {
-				conf.yMotion = ConfigurableJointMotion.Locked;
-			} else {
-				conf.yMotion = ConfigurableJointMotion.Limited;
-			}
+            if (Math.Abs(joint.PositionLowLimit.y) < Tools.MmdMathConstEps &&
+                Math.Abs(joint.PositionHiLimit.y) < Tools.MmdMathConstEps)
+            {
+                conf.yMotion = ConfigurableJointMotion.Locked;
+            }
+            else
+            {
+                conf.yMotion = ConfigurableJointMotion.Limited;
+            }
 
-			if (Math.Abs(joint.PositionLowLimit.z) < Tools.MmdMathConstEps && Math.Abs(joint.PositionHiLimit.z) < Tools.MmdMathConstEps) {
-				conf.zMotion = ConfigurableJointMotion.Locked;
-			} else {
-				conf.zMotion = ConfigurableJointMotion.Limited;
-			}
+            if (Math.Abs(joint.PositionLowLimit.z) < Tools.MmdMathConstEps &&
+                Math.Abs(joint.PositionHiLimit.z) < Tools.MmdMathConstEps)
+            {
+                conf.zMotion = ConfigurableJointMotion.Locked;
+            }
+            else
+            {
+                conf.zMotion = ConfigurableJointMotion.Limited;
+            }
 
-			if (Math.Abs(joint.RotationLowLimit.x) < Tools.MmdMathConstEps && Math.Abs(joint.RotationHiLimit.x) < Tools.MmdMathConstEps) {
-				conf.angularXMotion = ConfigurableJointMotion.Locked;
-			} else {
-				conf.angularXMotion = ConfigurableJointMotion.Limited;
-				var hlim = Mathf.Max(-joint.RotationLowLimit.x, -joint.RotationHiLimit.x); 
-				var llim = Mathf.Min(-joint.RotationLowLimit.x, -joint.RotationHiLimit.x);
-			    var jhlim = new SoftJointLimit {limit = Mathf.Clamp(hlim * Mathf.Rad2Deg, -180.0f, 180.0f)};
-			    conf.highAngularXLimit = jhlim;
+            if (Math.Abs(joint.RotationLowLimit.x) < Tools.MmdMathConstEps &&
+                Math.Abs(joint.RotationHiLimit.x) < Tools.MmdMathConstEps)
+            {
+                conf.angularXMotion = ConfigurableJointMotion.Locked;
+            }
+            else
+            {
+                conf.angularXMotion = ConfigurableJointMotion.Limited;
+                var hlim = Mathf.Max(-joint.RotationLowLimit.x, -joint.RotationHiLimit.x);
+                var llim = Mathf.Min(-joint.RotationLowLimit.x, -joint.RotationHiLimit.x);
+                var jhlim = new SoftJointLimit {limit = Mathf.Clamp(hlim * Mathf.Rad2Deg, -180.0f, 180.0f)};
+                conf.highAngularXLimit = jhlim;
 
-			    var jllim = new SoftJointLimit {limit = Mathf.Clamp(llim * Mathf.Rad2Deg, -180.0f, 180.0f)};
-			    conf.lowAngularXLimit = jllim;
-			}
+                var jllim = new SoftJointLimit {limit = Mathf.Clamp(llim * Mathf.Rad2Deg, -180.0f, 180.0f)};
+                conf.lowAngularXLimit = jllim;
+            }
 
-			if (Math.Abs(joint.RotationLowLimit.y) < Tools.MmdMathConstEps && Math.Abs(joint.RotationHiLimit.y) < Tools.MmdMathConstEps) {
-				conf.angularYMotion = ConfigurableJointMotion.Locked;
-			} else {
-				conf.angularYMotion = ConfigurableJointMotion.Limited;
-				conf.angularYMotion = ConfigurableJointMotion.Limited;
-				var lim = Mathf.Min(Mathf.Abs(joint.RotationLowLimit.y), Mathf.Abs(joint.RotationHiLimit.y));
-			    jlim = new SoftJointLimit {limit = lim * Mathf.Clamp(Mathf.Rad2Deg, 0.0f, 180.0f)};
-			    conf.angularYLimit = jlim;
-			}
+            if (Math.Abs(joint.RotationLowLimit.y) < Tools.MmdMathConstEps &&
+                Math.Abs(joint.RotationHiLimit.y) < Tools.MmdMathConstEps)
+            {
+                conf.angularYMotion = ConfigurableJointMotion.Locked;
+            }
+            else
+            {
+                conf.angularYMotion = ConfigurableJointMotion.Limited;
+                conf.angularYMotion = ConfigurableJointMotion.Limited;
+                var lim = Mathf.Min(Mathf.Abs(joint.RotationLowLimit.y), Mathf.Abs(joint.RotationHiLimit.y));
+                jlim = new SoftJointLimit {limit = lim * Mathf.Clamp(Mathf.Rad2Deg, 0.0f, 180.0f)};
+                conf.angularYLimit = jlim;
+            }
 
-			if (Math.Abs(joint.RotationLowLimit.z) < Tools.MmdMathConstEps && Math.Abs(joint.RotationHiLimit.z) < Tools.MmdMathConstEps) {
-				conf.angularZMotion = ConfigurableJointMotion.Locked;
-			} else {
-				conf.angularZMotion = ConfigurableJointMotion.Limited;
-				var lim = Mathf.Min(Mathf.Abs(-joint.RotationLowLimit.z), Mathf.Abs(-joint.RotationHiLimit.z));
-			    jlim = new SoftJointLimit {limit = Mathf.Clamp(lim * Mathf.Rad2Deg, 0.0f, 180.0f)};
-			    conf.angularZLimit = jlim;
-			}
-		}
-        
+            if (Math.Abs(joint.RotationLowLimit.z) < Tools.MmdMathConstEps &&
+                Math.Abs(joint.RotationHiLimit.z) < Tools.MmdMathConstEps)
+            {
+                conf.angularZMotion = ConfigurableJointMotion.Locked;
+            }
+            else
+            {
+                conf.angularZMotion = ConfigurableJointMotion.Limited;
+                var lim = Mathf.Min(Mathf.Abs(-joint.RotationLowLimit.z), Mathf.Abs(-joint.RotationHiLimit.z));
+                jlim = new SoftJointLimit {limit = Mathf.Clamp(lim * Mathf.Rad2Deg, 0.0f, 180.0f)};
+                conf.angularZLimit = jlim;
+            }
+        }
+
         private void SetDrive(Constraint joint, ConfigurableJoint conf)
         {
             JointDrive drive;
 
             // Position
-            if (Math.Abs(joint.Position.x) > Tools.MmdMathConstEps) {
+            if (Math.Abs(joint.Position.x) > Tools.MmdMathConstEps)
+            {
                 drive = new JointDrive {positionSpring = joint.Position.x};
                 conf.xDrive = drive;
             }
-            if (Math.Abs(joint.Position.y) > Tools.MmdMathConstEps) {
+            if (Math.Abs(joint.Position.y) > Tools.MmdMathConstEps)
+            {
                 drive = new JointDrive {positionSpring = joint.Position.y};
                 conf.yDrive = drive;
             }
-            if (Math.Abs(joint.Position.z) > Tools.MmdMathConstEps) {
+            if (Math.Abs(joint.Position.z) > Tools.MmdMathConstEps)
+            {
                 drive = new JointDrive {positionSpring = joint.Position.z};
                 conf.zDrive = drive;
             }
 
             // Angular
-            if (Math.Abs(joint.Rotation.x) > Tools.MmdMathConstEps) {
+            if (Math.Abs(joint.Rotation.x) > Tools.MmdMathConstEps)
+            {
                 drive = new JointDrive
                 {
                     //mode = JointDriveMode.PositionAndVelocity,
@@ -1142,7 +1227,9 @@ namespace LibMMD.Unity3D
                 };
                 conf.angularXDrive = drive;
             }
-            if (Math.Abs(joint.Rotation.y) > Tools.MmdMathConstEps || Math.Abs(joint.Rotation.z) > Tools.MmdMathConstEps) {
+            if (Math.Abs(joint.Rotation.y) > Tools.MmdMathConstEps ||
+                Math.Abs(joint.Rotation.z) > Tools.MmdMathConstEps)
+            {
                 drive = new JointDrive
                 {
                     //mode = JointDriveMode.PositionAndVelocity,
@@ -1151,35 +1238,38 @@ namespace LibMMD.Unity3D
                 conf.angularYZDrive = drive;
             }
         }
-        
+
         private void GlobalizeRigidbody(GameObject[] joints)
         {
             var physicsRootTransform = gameObject.transform.Find("Physics");
 
             if (null == joints || 0 >= joints.Length) return;
-				
-            foreach (ConfigurableJoint joint in joints.Where(x=>!x.GetComponent<Rigidbody>().isKinematic)
-                .Select(x=>x.GetComponent<ConfigurableJoint>())) {
+
+            foreach (ConfigurableJoint joint in joints.Where(x => !x.GetComponent<Rigidbody>().isKinematic)
+                .Select(x => x.GetComponent<ConfigurableJoint>()))
+            {
                 joint.transform.parent = physicsRootTransform;
             }
         }
-        
+
         private List<int>[] SettingIgnoreRigidGroups()
         {
-            const int maxGroup = 16;	
+            const int maxGroup = 16;
             var result = new List<int>[maxGroup];
-            for (int i = 0, iMax = maxGroup; i < iMax; ++i) {
+            for (int i = 0, iMax = maxGroup; i < iMax; ++i)
+            {
                 result[i] = new List<int>();
             }
-            for (int i = 0, iMax = _model.Rigidbodies.Length; i < iMax; ++i) {
+            for (int i = 0, iMax = _model.Rigidbodies.Length; i < iMax; ++i)
+            {
                 result[_model.Rigidbodies[i].CollisionGroup].Add(i);
             }
             return result;
         }
-        
+
         private int[] GetRigidbodyGroupTargets()
         {
-            return _model.Rigidbodies.Select(x=>(int)x.CollisionMask).ToArray();
+            return _model.Rigidbodies.Select(x => (int) x.CollisionMask).ToArray();
         }
 
         private static void IgnoreCollisions(IList<GameObject> rigids, IList<int> groupTarget, List<int>[] ignoreList)
@@ -1191,10 +1281,28 @@ namespace LibMMD.Unity3D
                     if ((groupTarget[i] & (1 << shift)) != 0) continue;
                     for (var j = 0; j < ignoreList[shift].Count; j++)
                     {
-                        var ignoreIndex=ignoreList[shift][j];
+                        var ignoreIndex = ignoreList[shift][j];
                         if (i == ignoreIndex) continue;
-                        Physics.IgnoreCollision(rigids[i].GetComponent<Collider>(), rigids[ignoreIndex].GetComponent<Collider>(), true);
+                        Physics.IgnoreCollision(rigids[i].GetComponent<Collider>(),
+                            rigids[ignoreIndex].GetComponent<Collider>(), true);
                     }
+                }
+            }
+        }
+        
+        private void ReorderRender(UnityEngine.Material[] materials) {
+            if (materials.Length == 0) {
+                return;
+            }
+            var order = new UnityEngine.Material[materials.Length];
+            Array.Copy (materials, order, materials.Length);
+            order.OrderBy (mat => mat.renderQueue);
+            var lastQueue = int.MinValue;
+            foreach (var mat in order) {
+                if (lastQueue >= mat.renderQueue) {
+                    mat.renderQueue = lastQueue++;
+                } else {
+                    lastQueue = mat.renderQueue;
                 }
             }
         }

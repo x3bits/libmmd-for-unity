@@ -220,33 +220,27 @@ namespace LibMMD.Motion
             }
         }
 
-        public void UpdateBoneTransform(int index)
+        private void UpdateBoneAppendTransform(int index)
         {
             var image = BoneImages[index];
-            image.TotalRotation = image.MorphRotation * image.Rotation;
-            image.TotalTranslation = image.MorphTranslation + image.Translation;
-
-            if (image.HasAppend)
+            if (!image.HasAppend) return;
+            if (image.AppendRotate)
             {
-                if (image.AppendRotate)
-                {
-                    image.TotalRotation = image.TotalRotation *
-                                          Quaternion.Slerp(Quaternion.identity,
-                                              BoneImages[image.AppendParent].TotalRotation, image.AppendRatio);
-                }
-                if (image.AppendTranslate)
-                {
-                    image.TotalTranslation = image.TotalTranslation +
-                                             image.AppendRatio * BoneImages[image.AppendParent].TotalTranslation;
-                }
+                image.TotalRotation = image.TotalRotation *
+                                      Quaternion.Slerp(Quaternion.identity,
+                                          BoneImages[image.AppendParent].TotalRotation, image.AppendRatio);
             }
-
-            if (image.IkLink)
+            if (image.AppendTranslate)
             {
-                image.PreIkRotation = image.TotalRotation;
-                image.TotalRotation = image.IkRotation * image.TotalRotation;
+                image.TotalTranslation = image.TotalTranslation +
+                                         image.AppendRatio * BoneImages[image.AppendParent].TotalTranslation;
             }
+            
+            UpdateLocalMatrix(image);
+        }
 
+        private void UpdateLocalMatrix(BoneImage image)
+        {
             image.LocalMatrix = MathUtil.QuaternionToMatrix4X4(image.TotalRotation);
             MathUtil.SetTransToMatrix4X4(image.TotalTranslation + image.LocalOffset, ref image.LocalMatrix);
 
@@ -254,6 +248,21 @@ namespace LibMMD.Motion
             {
                 image.LocalMatrix = BoneImages[image.Parent].LocalMatrix * image.LocalMatrix;
             }
+        }
+
+        private void UpdateBoneSelfTransform(int index)
+        {
+            var image = BoneImages[index];
+            image.TotalRotation = image.MorphRotation * image.Rotation;
+            image.TotalTranslation = image.MorphTranslation + image.Translation;
+
+            if (image.IkLink)
+            {
+                image.PreIkRotation = image.TotalRotation;
+                image.TotalRotation = image.IkRotation * image.TotalRotation;
+            }
+
+            UpdateLocalMatrix(image);
 
             if (!image.HasIk) return;
             var ikLinkNum = image.IkLinks.Length;
@@ -264,7 +273,7 @@ namespace LibMMD.Motion
             var ikPosition = MathUtil.GetTransFromMatrix4X4(image.LocalMatrix);
             for (var i = 0; i < ikLinkNum; ++i)
             {
-                UpdateBoneTransform(image.IkTarget);
+                UpdateBoneSelfTransform(image.IkTarget);
             }
             var targetPosition = MathUtil.GetTransFromMatrix4X4(BoneImages[image.IkTarget].LocalMatrix);
             var ikError = ikPosition - targetPosition;
@@ -368,16 +377,9 @@ namespace LibMMD.Motion
                     {
                         var linkImage = BoneImages[image.IkLinks[j - k]];
                         linkImage.TotalRotation = linkImage.IkRotation * linkImage.PreIkRotation;
-                        linkImage.LocalMatrix = MathUtil.QuaternionToMatrix4X4(linkImage.TotalRotation);
-                        MathUtil.SetTransToMatrix4X4(linkImage.TotalTranslation + linkImage.LocalOffset,
-                            ref linkImage.LocalMatrix);
-                        if (linkImage.HasParent)
-                        {
-                            linkImage.LocalMatrix =
-                                BoneImages[linkImage.Parent].LocalMatrix * linkImage.LocalMatrix;
-                        }
+                        UpdateLocalMatrix(linkImage);
                     }
-                    UpdateBoneTransform(image.IkTarget);
+                    UpdateBoneSelfTransform(image.IkTarget);
                     targetPosition = MathUtil.Matrix4x4ColDowngrade(BoneImages[image.IkTarget].LocalMatrix, 3);
                 }
                 ikError = ikPosition - targetPosition;
@@ -490,7 +492,15 @@ namespace LibMMD.Motion
         {
             foreach (var index in indexList)
             {
-                UpdateBoneTransform(index);
+                UpdateBoneSelfTransform(index);
+            }
+            foreach (var index in indexList)
+            {
+                UpdateBoneAppendTransform(index);
+            }
+            foreach (var index in indexList)
+            {
+                UpdateLocalMatrix(BoneImages[index]);
             }
         }
 

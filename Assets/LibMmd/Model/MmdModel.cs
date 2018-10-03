@@ -69,6 +69,7 @@ namespace LibMMD.Model
                                 var bdef2 = new SkinningOperator.Bdef2();
                                 bdef2.BoneId[0] = bone0;
                                 bdef2.BoneId[1] = bone1;
+                                bdef2.BoneWeight = weight;
                                 vertex.SkinningOperator.Param = bdef2;
                                 vertex.SkinningOperator.Type = SkinningOperator.SkinningType.SkinningBdef2;
                             }
