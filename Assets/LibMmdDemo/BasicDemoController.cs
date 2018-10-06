@@ -9,11 +9,13 @@ namespace LibMmdDemo
 
 		public string MotionPath;
 		
+		public string CameraPath;
+		
 		protected void Start ()
 		{
-			if (string.IsNullOrEmpty(ModelPath) || string.IsNullOrEmpty(MotionPath))
+			if (string.IsNullOrEmpty(ModelPath) || string.IsNullOrEmpty(MotionPath) || string.IsNullOrEmpty(CameraPath))
 			{
-				Debug.LogError("please fill your model and motion file path to ");
+				Debug.LogError("please fill your model, motion and camera file path");
 			}
 			var mmdObj = MmdGameObject.CreateGameObject("MmdGameObject");
 			var mmdGameObject = mmdObj.GetComponent<MmdGameObject>();
@@ -29,6 +31,10 @@ namespace LibMmdDemo
 			});	
 			
 			mmdGameObject.Playing = true;
+
+			var mmdCamera = MmdCameraObject.CreateGameObject("MmdCameraObject").GetComponent<MmdCameraObject>();
+			mmdCamera.LoadCameraMotion(CameraPath);
+			mmdCamera.Playing = true;
 
 		}
 

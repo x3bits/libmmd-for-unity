@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -86,7 +85,55 @@ namespace LibMMD.Reader
 
             return motion.BuildMmdMotion();
         }
+        
+        public CameraMotion ReadCameraMotion(string path)
+        {
+            using (var fileStream = new FileStream(path, FileMode.Open))
+            {
+                using (var bufferedStream = new BufferedStream(fileStream))
+                {
+                    using (var binaryReader = new BinaryReader(bufferedStream))
+                    {
+                        return ReadCameraMotion(binaryReader);
+                    }
+                }
+            }
+        }
 
+        public CameraMotion ReadCameraMotion(BinaryReader reader, bool motionReadAlready = false)
+        {
+            if (!motionReadAlready)
+            {
+                Read(reader);
+            }
+            var ret = new CameraMotion();
+            var cameraMotionNum = reader.ReadInt32();
+            Dictionary<int, CameraKeyframe> keyframes = new Dictionary<int, CameraKeyframe>();
+            for(var i=0;i<cameraMotionNum;++i)
+            {
+
+                var nFrame = reader.ReadInt32();
+                var focalLength = reader.ReadSingle();
+                var position = MmdReaderUtil.ReadVector3(reader);
+                var rotation = MmdReaderUtil.ReadVector3(reader);
+                var interpolator = reader.ReadBytes(24);
+                var fov = reader.ReadUInt32();
+                var orthographic = reader.ReadByte();
+                var keyframe = new CameraKeyframe
+                {
+                    Fov = fov,
+                    FocalLength = focalLength,
+                    Orthographic = orthographic != 0,
+                    Position = position,
+                    Rotation = rotation,
+                    Interpolation = interpolator
+                };
+                keyframes[nFrame] = keyframe;
+            }
+            var frameList = keyframes.Select(entry => entry).ToList().OrderBy(kv => kv.Key).ToList();
+            ret.KeyFrames = frameList;
+            return ret;
+        }
 
         private VmdBone ReadVmdBone(BinaryReader reader)
         {

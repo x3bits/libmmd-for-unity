@@ -15,7 +15,7 @@ Libmmd-for-Unity is a Unity version of [libmmd](https://github.com/itsuhane/libm
 ### Run demos
 
 - Download the source code. 
-- Play the scenes under the folder Assets/LibMmdDemo. You need to fill your mikumikudance model and motion path to the component under the "GameController" object before playing.
+- Play the scenes under the folder Assets/LibMmdDemo. You need to fill your mikumikudance model， motion and camera motion path to the component under the "GameController" object before playing.
 
 ### Use in your project
 
@@ -39,4 +39,8 @@ Libmmd-for-Unity makes use of the following 3rd party software:
 - BulletSharpUnity3d - Copyright for portions of project BulletSharp and BulletSharpPInvoke are held by Andres Traks, 2013-2015 as part of project BulletSharpUnity3d - provided under the zlib/libpng License
 
   https://github.com/Phong13/BulletSharpUnity3d
+
+- MMDCameraPath -  Copyright {@2017} { @Rumeng (chinesename liuzhanhao) } email:liuzhanhao96@126.com Licensed under the Apache License, Version 2.0 (the "License")
+
+  https://github.com/lzh1590/MMDCameraPath
 

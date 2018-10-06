@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "libmmd-for-unity", "Assembly-CSharp.csproj", "{2A964437-E39E-3FBF-A8D2-63ECC0165CD4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp", "Assembly-CSharp.csproj", "{2A964437-E39E-3FBF-A8D2-63ECC0165CD4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "libmmd-for-unity", "Assembly-CSharp-Editor-firstpass.csproj", "{8C0A3DF6-CF20-2AFF-21C9-4387E854995D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp-Editor-firstpass", "Assembly-CSharp-Editor-firstpass.csproj", "{8C0A3DF6-CF20-2AFF-21C9-4387E854995D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
