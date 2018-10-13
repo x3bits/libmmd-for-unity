@@ -213,11 +213,14 @@ namespace LibMMD.Unity3D
             }
             ReleaseBonePoseFile();
             MotionPath = path;
-            LoadMotionKernal(path);
+            var hasMotionData = LoadMotionKernal(path);
             _playTime = 0.0;
             UpdateBones();
             UpdateMesh(_playTime);
-            RestartBonePoseCalculation(_playTime, 1.0f / PhysicsFps);
+            if (hasMotionData)
+            {
+                RestartBonePoseCalculation(_playTime, 1.0f / PhysicsFps);   
+            }
         }
 
         public void LoadPose(string path)
@@ -523,11 +526,19 @@ namespace LibMMD.Unity3D
             return ret;
         }
 
-        private void LoadMotionKernal(string filePath)
+        private bool LoadMotionKernal(string filePath)
         {
             _motion = new VmdReader().Read(filePath);
+            if (_motion.Length == 0)
+            {
+                StopBonePoseCalculation();
+                _poser.ResetPosing();
+                ResetMotionPlayer();
+                return false;
+            }
             ResetMotionPlayer();
             //_poser.Deform();
+            return true;
         }
 
         private void ResetMotionPlayer()

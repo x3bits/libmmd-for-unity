@@ -975,7 +975,7 @@ namespace LibMMD.Unity3D.ImageLoader
 							
 							// write the row bytes and padding bytes to the memory streem
 							msData.Write(brow, 0, brow.Length);
-							msData.Write(padding, 0, padding.Length);
+							//msData.Write(padding, 0, padding.Length); //经测试不需要输出padding，否则24位TargaImage会显示异常
 						}
 						// get the image byte array
 						data = msData.ToArray(); 

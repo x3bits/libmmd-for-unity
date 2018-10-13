@@ -7,8 +7,12 @@ namespace LibMMD.Motion
     {
         public List<KeyValuePair<int, CameraKeyframe>> KeyFrames { get; set; }
 
-        public CameraPose GetCameraPose(int frame)
+        private CameraPose GetCameraPoseByFrame(float frame)
         {
+            if (KeyFrames.Count == 0)
+            {
+                return null;
+            }
             if (KeyFrames[0].Key >= frame)
             {
                 var value = KeyFrames[0].Value;
@@ -21,7 +25,7 @@ namespace LibMMD.Motion
                 return CameraKeyFrameToCameraPose(value);
             }
 
-            var toSearch = new KeyValuePair<int, CameraKeyframe>(frame, null);
+            var toSearch = new KeyValuePair<int, CameraKeyframe>((int)frame, null);
 
             var rightBoundIndex = KeyFrames.BinarySearch(toSearch, CameraKeyframeSearchComparator.Instance);
 
@@ -48,11 +52,11 @@ namespace LibMMD.Motion
             var leftBound = KeyFrames[leftBoundIndex];
             var leftFrame = leftBound.Key;
             var leftKey = leftBound.Value;
-            if (leftFrame == rightFrame)
+            if (leftFrame == rightFrame || leftFrame == rightFrame - 1) //如果两个关键帧相邻，一般是要切镜，不做插值直接取左帧
             {
                 return CameraKeyFrameToCameraPose(leftKey);
             }
-            var t = (float) (frame - leftFrame) / (rightFrame - leftFrame);
+            var t = (frame - leftFrame) / (rightFrame - leftFrame);
             var points = new float[6];
             for (var i = 0; i < 6; i++)
             {
@@ -63,9 +67,9 @@ namespace LibMMD.Motion
             var x = leftKey.Position.x + points[0] * (rightKey.Position.x - leftKey.Position.x);
             var y = leftKey.Position.y + points[1] * (rightKey.Position.y - leftKey.Position.y);
             var z = leftKey.Position.z + points[2] * (rightKey.Position.z - leftKey.Position.z);
-            var rx = leftKey.Rotation.x * 180 / Mathf.PI + points[3] * (rightKey.Rotation.x - leftKey.Rotation.x);
-            var ry = leftKey.Rotation.y * 180 / Mathf.PI + points[3] * (rightKey.Rotation.y - leftKey.Rotation.y);
-            var rz = leftKey.Rotation.z * 180 / Mathf.PI + points[3] * (rightKey.Rotation.z - leftKey.Rotation.z);
+            var rx = leftKey.Rotation.x + points[3] * (rightKey.Rotation.x - leftKey.Rotation.x);
+            var ry = leftKey.Rotation.y + points[3] * (rightKey.Rotation.y - leftKey.Rotation.y);
+            var rz = leftKey.Rotation.z + points[3] * (rightKey.Rotation.z - leftKey.Rotation.z);
             var focalLength = leftKey.FocalLength + points[4] * (rightKey.FocalLength - leftKey.FocalLength);
             var fov = leftKey.Fov + (rightKey.Fov - leftKey.Fov) * points[5];
             return new CameraPose
@@ -92,7 +96,7 @@ namespace LibMMD.Motion
 
         public CameraPose GetCameraPose(double time)
         {
-            return GetCameraPose((int) (time * 30.0));
+            return GetCameraPoseByFrame((float) (time * 30.0));
         }
 
         private class CameraKeyframeSearchComparator : IComparer<KeyValuePair<int, CameraKeyframe>>

@@ -76,7 +76,8 @@ void surf (Input IN, inout EditorSurfaceOutput o)
 	float2 uv_coord = float2( IN.uv_MainTex.x, IN.uv_MainTex.y );
 	float4 tex_color = tex2D( _MainTex, uv_coord );
 	// Sphere Map
-	float3 viewNormal = normalize( UnityObjectToClipPos(float4(normalize(o.Normal), 0.0) ).xyz );
+	//float3 viewNormal = normalize( mul( UNITY_MATRIX_MV, float4(normalize(o.Normal), 0.0) ).xyz );//部分机型上这个不支持
+	float3 viewNormal = normalize(UnityObjectToViewPos(normalize(o.Normal)) - UnityObjectToViewPos(float3(0.0,0.0,0.0)));
 	float2 sphereUv = viewNormal.xy * 0.5 + 0.5;
 	float4 sphereAdd = tex2D( _SphereAddTex, sphereUv );
 	float4 sphereMul = tex2D( _SphereMulTex, sphereUv );

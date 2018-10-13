@@ -15,6 +15,8 @@ namespace LibMMD.Unity3D
         {
             var cameraObj = new GameObject("Camera");
             var cameraComponent = cameraObj.AddComponent<Camera>();
+            cameraComponent.backgroundColor = Color.black;
+            cameraComponent.clearFlags = CameraClearFlags.Color;
             var obj = new GameObject(name);
             cameraComponent.transform.SetParent(obj.transform);
             var mmdCameraObject = obj.AddComponent<MmdCameraObject>();
@@ -22,16 +24,33 @@ namespace LibMMD.Unity3D
             return obj;
         }
         
-        public void LoadCameraMotion(string path)
+        public bool LoadCameraMotion(string path)
         {
+            if (path == null)
+            {
+                _cameraMotion = null;
+                return false;
+            }
             _cameraMotion = new VmdReader().ReadCameraMotion(path);
+            if (_cameraMotion.KeyFrames.Count == 0)
+            {
+                return false;
+            }
             ResetMotion();
+            return true;
         }
 
         public void ResetMotion()
         {
             _playTime = 0.0;
             Playing = false;
+            Refresh();
+        }
+
+        public void SetPlayPos(double pos)
+        {
+            _playTime = pos;
+            Refresh();
         }
 
         private void Update()
@@ -42,13 +61,25 @@ namespace LibMMD.Unity3D
             }
             var deltaTime = Time.deltaTime;
             _playTime += deltaTime;
+            Refresh();
+        }
+
+        private void Refresh()
+        {
+            if (_cameraMotion == null)
+            {
+                return;
+            }
             var cameraPose = _cameraMotion.GetCameraPose(_playTime);
+            if (cameraPose == null)
+            {
+                return;
+            }
             transform.position = cameraPose.Position;
-            transform.rotation = Quaternion.Euler(-cameraPose.Rotation);
-            _camera.transform.localPosition = new Vector3(0.0f,0.0f,cameraPose.FocalLength);
+            transform.rotation = Quaternion.Euler(- 180 / Mathf.PI * cameraPose.Rotation);
+            _camera.transform.localPosition = new Vector3(0.0f, 0.0f, cameraPose.FocalLength);
             _camera.fieldOfView = cameraPose.Fov;
             _camera.orthographic = cameraPose.Orthographic;
         }
-        
     }
 }
