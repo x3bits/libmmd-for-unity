@@ -24,7 +24,7 @@ Libmmd-for-Unity is a Unity version of [libmmd](https://github.com/itsuhane/libm
 
 ## License
 
-Libmmd-for-Unity is free software available under the 3-Clause BSD License. See the file license.txt for license conditions.
+Libmmd-for-Unity is free software available under the 3-Clause BSD License. See the file "LICENSE" for license conditions.
 
 3rd party software licenses are under the "3rd-party-softwore-licenses" directory.
 
