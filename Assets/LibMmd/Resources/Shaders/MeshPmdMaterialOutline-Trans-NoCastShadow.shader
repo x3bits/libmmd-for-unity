@@ -40,7 +40,7 @@ Shader "MMD/Transparent/PMDMaterial-with-Outline-NoCastShadow"
 			"Queue" = "Geometry+2"
 			"RenderType" = "Transparent"
 		}
-		// Write depth after both sides have contributed color and alpha.
+		// Draw both sides before writing depth.
 		
 		// Surface Shader Pass ( Back )
 		Cull Front
@@ -63,6 +63,10 @@ Shader "MMD/Transparent/PMDMaterial-with-Outline-NoCastShadow"
 		#include "MeshPmdMaterialSurface.cginc"
 		ENDCG
 		
+		// Preserve both sides' alpha, then occlude back-facing outlines with surface depth.
+		UsePass "Hidden/LibMMD/TransparentAlpha/DOUBLE"
+		UsePass "Hidden/LibMMD/TransparentAlpha/DEPTH_DOUBLE"
+
 		// Outline Pass
 		Pass
 		{
@@ -75,9 +79,6 @@ Shader "MMD/Transparent/PMDMaterial-with-Outline-NoCastShadow"
 			#include "MeshPmdMaterialVertFrag.cginc"
 			ENDCG
 		}
-	
-		UsePass "Hidden/LibMMD/TransparentAlpha/DOUBLE"
-        UsePass "Hidden/LibMMD/TransparentAlpha/DEPTH_DOUBLE"
 	}
 
 	// Other Environment

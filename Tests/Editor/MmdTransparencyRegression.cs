@@ -48,7 +48,10 @@ public static class MmdTransparencyRegression
                 if (material.HasProperty("_OutlineWidth")) material.SetFloat("_OutlineWidth", 0);
                 camera.Render(); RenderTexture.active = target; image.ReadPixels(new Rect(0,0,64,64),0,0); image.Apply();
                 var pixel = image.GetPixel(32,32); report += material.shader.name + " " + pixel + "\n";
-                if (Mathf.Abs(pixel.a - .75f) > .02f || pixel.b < .1f) throw new Exception(report);
+                // An occluded back-face outline must not darken the front surface.
+                if (Mathf.Abs(pixel.a - .75f) > .02f ||
+                    Mathf.Abs(pixel.r - .5f) > .02f || Mathf.Abs(pixel.b - .25f) > .02f)
+                    throw new Exception(report);
             }
             var controllerObj = new GameObject("Material config test"); SceneManager.MoveGameObjectToScene(controllerObj, scene);
             var controller = controllerObj.AddComponent<LibMMD.Unity3D.MmdGameObject>();
