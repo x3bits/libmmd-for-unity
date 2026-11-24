@@ -40,6 +40,7 @@ Shader "MMD/Transparent/PMDMaterial-with-Outline-CullBack-NoCastShadow"
 			"Queue" = "Geometry+2"
 			"RenderType" = "Transparent"
 		}
+		UsePass "Hidden/LibMMD/TransparentAlpha/DEPTH_CULLBACK"
 		
 		// Surface Shader Pass
 		Cull Back
@@ -47,7 +48,7 @@ Shader "MMD/Transparent/PMDMaterial-with-Outline-CullBack-NoCastShadow"
 		Blend SrcAlpha OneMinusSrcAlpha
 		AlphaTest Greater 0.0
 		CGPROGRAM
-		#pragma surface surf MMD keepalpha
+		#pragma surface surf MMD alpha:fade keepalpha
 		#pragma multi_compile SELFSHADOW_OFF SELFSHADOW_ON
 		#include "MeshPmdMaterialSurface.cginc"
 		ENDCG
@@ -65,6 +66,7 @@ Shader "MMD/Transparent/PMDMaterial-with-Outline-CullBack-NoCastShadow"
 			ENDCG
 		}
 	
+		UsePass "Hidden/LibMMD/TransparentAlpha/CULLBACK"
 	}
 
 	// Other Environment

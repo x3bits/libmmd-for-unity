@@ -336,7 +336,6 @@ namespace LibMMD.Unity3D
         {
             ReleasePreviousMaterials();
             _materials = LoadMaterials(_config);
-            ReorderRender(_materials);
         }
 
         private void ReleasePreviousMaterials()
@@ -420,6 +419,7 @@ namespace LibMMD.Unity3D
                 ret[i] = _materialLoader.LoadMaterial(_model.Parts[i].Material, config);
                 //Debug.LogFormat("material {0} render queue {1}", i, ret[i].renderQueue);
             }
+            ReorderRender(ret);
             return ret;
         }
 
@@ -438,6 +438,8 @@ namespace LibMMD.Unity3D
             {
                 _materialLoader.RefreshMaterialConfig(_model.Parts[i].Material, config, materials[i]);
             }
+            // Assigning a new shader resets its custom render queue.
+            ReorderRender(materials);
         }
 
         private void FillSubMesh(Mesh mesh, int triangleCount, int[] triangles)
@@ -1301,20 +1303,13 @@ namespace LibMMD.Unity3D
             }
         }
         
-        private void ReorderRender(UnityEngine.Material[] materials) {
-            if (materials.Length == 0) {
-                return;
-            }
-            var order = new UnityEngine.Material[materials.Length];
-            Array.Copy (materials, order, materials.Length);
-            order.OrderBy (mat => mat.renderQueue);
+        private static void ReorderRender(UnityEngine.Material[] materials) {
+            // PMX material order defines the layering of facial overlays, eyes,
+            // and hair. Equal queues let Unity reorder these submeshes.
             var lastQueue = int.MinValue;
-            foreach (var mat in order) {
-                if (lastQueue >= mat.renderQueue) {
-                    mat.renderQueue = lastQueue++;
-                } else {
-                    lastQueue = mat.renderQueue;
-                }
+            foreach (var mat in materials) {
+                lastQueue = Math.Max(mat.renderQueue, lastQueue + 1);
+                mat.renderQueue = lastQueue;
             }
         }
     }
