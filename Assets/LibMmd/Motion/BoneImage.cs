@@ -14,6 +14,7 @@ namespace LibMMD.Motion
             MorphTranslation = Vector3.zero;
             GlobalOffsetMatrix = Matrix4x4.identity;
             GlobalOffsetMatrixInv = Matrix4x4.identity;
+            IkEnabled = true;
         }
 
         public Quaternion Rotation { get; set; }
@@ -33,6 +34,7 @@ namespace LibMMD.Motion
         public float AppendRatio { get; set; }
 
         public bool HasIk { get; set; }
+        public bool IkEnabled { get; set; }
         public bool IkLink { get; set; }
 
         public float CcdAngleLimit { get; set; }

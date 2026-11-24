@@ -264,7 +264,7 @@ namespace LibMMD.Motion
 
             UpdateLocalMatrix(image);
 
-            if (!image.HasIk) return;
+            if (!image.HasIk || !image.IkEnabled) return;
             var ikLinkNum = image.IkLinks.Length;
             for (var i = 0; i < ikLinkNum; ++i)
             {
@@ -371,7 +371,7 @@ namespace LibMMD.Motion
                             default:
                                 throw new ArgumentOutOfRangeException();
                         }
-                        ikImage.IkRotation = localRotation * Quaternion.Inverse(image.PreIkRotation);
+                        ikImage.IkRotation = localRotation * Quaternion.Inverse(ikImage.PreIkRotation);
                     }
                     for (var k = 0; k <= j; ++k)
                     {

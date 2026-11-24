@@ -16,6 +16,10 @@ namespace LibMMD.Motion
             for (var i = 0; i < model.Bones.Length; ++i)
             {
                 var name = model.Bones[i].Name;
+                if (model.Bones[i].HasIk)
+                {
+                    _ikMap.Add(new KeyValuePair<string, int>(name, i));
+                }
                 if (motion.IsBoneRegistered(name))
                 {
                     _boneMap.Add(new KeyValuePair<string, int>(name, i));
@@ -34,6 +38,7 @@ namespace LibMMD.Motion
 
         public void SeekFrame(int frame)
         {
+            ApplyIkStates(frame);
             foreach (var entry in _morphMap)
             {
                 _poser.SetMorphPose(entry.Value, _motion.GetMorphPose(entry.Key, frame));
@@ -46,6 +51,7 @@ namespace LibMMD.Motion
         
         public void SeekTime(double time)
         {
+            ApplyIkStates(time * 30.0);
             foreach (var entry in _morphMap)
             {
                 _poser.SetMorphPose(entry.Value, _motion.GetMorphPose(entry.Key, time));
@@ -53,6 +59,14 @@ namespace LibMMD.Motion
             foreach (var entry in _boneMap)
             {
                 _poser.SetBonePose(entry.Value, _motion.GetBonePose(entry.Key, time));
+            }
+        }
+
+        private void ApplyIkStates(double frame)
+        {
+            foreach (var entry in _ikMap)
+            {
+                _poser.BoneImages[entry.Value].IkEnabled = _motion.GetIkEnabled(entry.Key, frame);
             }
         }
 
@@ -108,6 +122,7 @@ namespace LibMMD.Motion
 
         private readonly List<KeyValuePair<string, int>> _boneMap = new List<KeyValuePair<string, int>>();
         private readonly List<KeyValuePair<string, int>> _morphMap = new List<KeyValuePair<string, int>>();
+        private readonly List<KeyValuePair<string, int>> _ikMap = new List<KeyValuePair<string, int>>();
 
         private readonly MmdMotion _motion;
         private readonly Poser _poser;
