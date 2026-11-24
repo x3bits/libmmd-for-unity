@@ -194,10 +194,6 @@ namespace LibMMD.Unity3D
 
         private void StopBonePoseCalculation()
         {
-            if (PhysicsMode != PhysicsModeEnum.Bullet)
-            {
-                return;
-            }
             if (_bonePosePreCalculator != null)
             {
                 _bonePosePreCalculator.Stop();
@@ -768,6 +764,12 @@ namespace LibMMD.Unity3D
 
         private void Release()
         {
+            StopBonePoseCalculation();
+            if (_physicsReactor != null)
+            {
+                _physicsReactor.Dispose();
+                _physicsReactor = null;
+            }
             if (_materialLoader != null)
             {
                 _materialLoader.Dispose();
@@ -780,7 +782,6 @@ namespace LibMMD.Unity3D
                 _bonePoseFileStorage = null;
             }
 
-            StopBonePoseCalculation();
         }
 
         public void ResetMotion()
