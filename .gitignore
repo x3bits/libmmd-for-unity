@@ -12,3 +12,7 @@ out/
 *.iml
 *.apk
 *.meta
+
+# Keep script GUIDs referenced by BasicDemo.
+!Assets/LibMmdDemo/BasicDemoController.cs.meta
+!Assets/LibMmdDemo/FpsDisplay.cs.meta
