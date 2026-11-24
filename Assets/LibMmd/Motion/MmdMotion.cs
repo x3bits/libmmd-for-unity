@@ -11,11 +11,29 @@ namespace LibMMD.Motion
 
         public Dictionary<string, List<KeyValuePair<int, BoneKeyframe>>> BoneMotions { get; set; }
         public Dictionary<string, List<KeyValuePair<int, MorphKeyframe>>> MorphMotions { get; set; }
+        public Dictionary<string, List<KeyValuePair<int, bool>>> IkMotions { get; set; }
 
         public MmdMotion()
         {
             BoneMotions = new Dictionary<string, List<KeyValuePair<int, BoneKeyframe>>>();
             MorphMotions = new Dictionary<string, List<KeyValuePair<int, MorphKeyframe>>>();
+            IkMotions = new Dictionary<string, List<KeyValuePair<int, bool>>>();
+        }
+
+        public bool GetIkEnabled(string boneName, double frame)
+        {
+            List<KeyValuePair<int, bool>> keys;
+            if (!IkMotions.TryGetValue(boneName, out keys)) return true;
+            // IK switches hold their value until the next key; they do not interpolate.
+            var left = 0;
+            var right = keys.Count;
+            while (left < right)
+            {
+                var middle = left + (right - left) / 2;
+                if (keys[middle].Key <= frame) left = middle + 1;
+                else right = middle;
+            }
+            return left == 0 || keys[left - 1].Value;
         }
 
         public BonePose GetBonePose(string boneName, int frame)

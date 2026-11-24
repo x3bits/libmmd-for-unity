@@ -25,6 +25,11 @@ namespace LibMMD.Reader
 
         public MmdMotion Read(BinaryReader reader)
         {
+            return Read(reader, true);
+        }
+
+        private MmdMotion Read(BinaryReader reader, bool readIk)
+        {
             var motion = new TempMmdMotion();
             var magic = MmdReaderUtil.ReadStringFixedLength(reader, 30, Tools.JapaneseEncoding);
             if (!"Vocaloid Motion Data 0002".Equals(magic))
@@ -83,7 +88,64 @@ namespace LibMMD.Reader
 
             //忽略后面的相机数据
 
-            return motion.BuildMmdMotion();
+            var result = motion.BuildMmdMotion();
+            if (readIk) ReadIkMotions(reader, result);
+            return result;
+        }
+
+        private static uint? ReadOptionalCount(BinaryReader reader)
+        {
+            // Older VMD files can end at a section boundary.
+            var first = reader.BaseStream.ReadByte();
+            if (first < 0) return null;
+            return (uint)first | ((uint)reader.ReadByte() << 8) |
+                   ((uint)reader.ReadByte() << 16) | ((uint)reader.ReadByte() << 24);
+        }
+
+        private static bool SkipOptionalSection(BinaryReader reader, int recordSize)
+        {
+            var count = ReadOptionalCount(reader);
+            if (!count.HasValue) return false;
+            for (uint i = 0; i < count.Value; ++i)
+            {
+                if (reader.ReadBytes(recordSize).Length != recordSize) throw new EndOfStreamException();
+            }
+            return true;
+        }
+
+        private static void ReadIkMotions(BinaryReader reader, MmdMotion motion)
+        {
+            // Camera, light and self-shadow records precede the variable-size IK section.
+            if (!SkipOptionalSection(reader, 61) || !SkipOptionalSection(reader, 28) ||
+                !SkipOptionalSection(reader, 9)) return;
+            var count = ReadOptionalCount(reader);
+            if (!count.HasValue) return;
+            var tracks = new Dictionary<string, Dictionary<int, bool>>();
+            for (uint i = 0; i < count.Value; ++i)
+            {
+                var frame = checked((int)reader.ReadUInt32());
+                reader.ReadByte(); // Model visibility is independent of IK enablement.
+                var ikCount = reader.ReadUInt32();
+                for (uint j = 0; j < ikCount; ++j)
+                {
+                    var nameBytes = reader.ReadBytes(20);
+                    if (nameBytes.Length != 20) throw new EndOfStreamException();
+                    var name = Tools.JapaneseEncoding.GetString(nameBytes).Split('\0')[0];
+                    var enabled = reader.ReadByte() != 0;
+                    Dictionary<int, bool> track;
+                    if (!tracks.TryGetValue(name, out track))
+                    {
+                        track = new Dictionary<int, bool>();
+                        tracks.Add(name, track);
+                    }
+                    track[frame] = enabled;
+                    if (frame > motion.Length) motion.Length = frame;
+                }
+            }
+            foreach (var track in tracks)
+            {
+                motion.IkMotions.Add(track.Key, track.Value.OrderBy(key => key.Key).ToList());
+            }
         }
         
         public CameraMotion ReadCameraMotion(string path)
@@ -104,7 +166,7 @@ namespace LibMMD.Reader
         {
             if (!motionReadAlready)
             {
-                Read(reader);
+                Read(reader, false);
             }
             var ret = new CameraMotion();
             var cameraMotionNum = reader.ReadInt32();
