@@ -16,13 +16,18 @@ using LibMMDDebug;
 
 namespace LibMMD.Pyhsics
 {
-    public class BulletPyhsicsReactor : PyhsicsReactor
+    public class BulletPyhsicsReactor : PyhsicsReactor, IDisposable
     {
 #if MMD_PHYSICS_DEBUG
         private UnityEngine.Material mat = new UnityEngine.Material(Shader.Find("Standard"));
 #endif
         private static readonly BoneImage NullBoneImage = new BoneImage();
         private readonly DiscreteDynamicsWorld _world;
+        private readonly DefaultCollisionConfiguration _configuration;
+        private readonly CollisionDispatcher _dispatcher;
+        private readonly BroadphaseInterface _broadphase;
+        private readonly SequentialImpulseConstraintSolver _solver;
+        private bool _disposed;
 
         private readonly RigidBody _groundRigidBody;
 
@@ -43,11 +48,11 @@ namespace LibMMD.Pyhsics
         public BulletPyhsicsReactor()
         {
             _hasFloor = true;
-            var configuration = new DefaultCollisionConfiguration();
-            var dispatcher = new CollisionDispatcher(configuration);
-            BroadphaseInterface broadphase = new DbvtBroadphase();
-            var solver = new SequentialImpulseConstraintSolver();
-            _world = new DiscreteDynamicsWorld(dispatcher, broadphase, solver, configuration);
+            _configuration = new DefaultCollisionConfiguration();
+            _dispatcher = new CollisionDispatcher(_configuration);
+            _broadphase = new DbvtBroadphase();
+            _solver = new SequentialImpulseConstraintSolver();
+            _world = new DiscreteDynamicsWorld(_dispatcher, _broadphase, _solver, _configuration);
 
             Vector3 gravity;
             _world.GetGravity(out gravity);
@@ -68,6 +73,7 @@ namespace LibMMD.Pyhsics
             info.Friction = 0.265f;
 
             _groundRigidBody = new RigidBody(info);
+            info.Dispose();
             _groundRigidBody.CollisionFlags = _groundRigidBody.CollisionFlags | CollisionFlags.KinematicObject;
             _groundRigidBody.ActivationState = ActivationState.DisableDeactivation;
 
@@ -137,6 +143,7 @@ namespace LibMMD.Pyhsics
                     };
 
                 var btRigidBody = new RigidBody(btInfo) {ActivationState = ActivationState.DisableDeactivation};
+                btInfo.Dispose();
 
                 if (body.Type == MmdRigidBody.RigidBodyType.RigidTypeKinematic)
                 {
@@ -227,14 +234,43 @@ namespace LibMMD.Pyhsics
             foreach (var constraint in constraints)
             {
                 _world.RemoveConstraint(constraint);
+                constraint.Dispose();
             }
             foreach (var rigidBody in rigidBodies)
             {
                 _world.RemoveRigidBody(rigidBody);
+                DisposeRigidBody(rigidBody);
             }
             _constraints.Remove(poser);
             _rigidBodies.Remove(poser);
             _motionStates.Remove(poser);
+        }
+
+        // The calculation worker must be stopped before releasing native resources.
+        public void Dispose()
+        {
+            if (_disposed) return;
+            foreach (var poser in new List<Poser>(_rigidBodies.Keys))
+            {
+                RemovePoser(poser);
+            }
+            if (_hasFloor) _world.RemoveRigidBody(_groundRigidBody);
+            DisposeRigidBody(_groundRigidBody);
+            _world.Dispose();
+            _solver.Dispose();
+            _broadphase.Dispose();
+            _dispatcher.Dispose();
+            _configuration.Dispose();
+            _disposed = true;
+        }
+
+        private static void DisposeRigidBody(RigidBody body)
+        {
+            var shape = body.CollisionShape;
+            var motionState = body.MotionState;
+            body.Dispose();
+            motionState.Dispose();
+            shape.Dispose();
         }
 
         public override void Reset()

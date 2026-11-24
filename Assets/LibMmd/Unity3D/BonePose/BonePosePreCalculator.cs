@@ -183,6 +183,16 @@ namespace LibMMD.Unity3D.BonePose
 
         public bool Step()
         {
+            // Stop waits for an in-flight step and prevents stale worker snapshots
+            // from accessing the reactor after it has been disposed.
+            lock (this)
+            {
+                return !_stopped && StepCore();
+            }
+        }
+
+        private bool StepCore()
+        {
             if (_bonePoseImagesStore.Count() >= _frameCacheSize)
             {
                 return false;
