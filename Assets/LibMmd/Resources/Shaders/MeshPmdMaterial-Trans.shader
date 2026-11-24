@@ -38,6 +38,7 @@ Shader "MMD/Transparent/PMDMaterial"
 			"Queue" = "Geometry+2"
 			"RenderType" = "Transparent"
 		}
+		// Write depth after both sides have contributed color and alpha.
 		
 		// Surface Shader
 		Cull Front
@@ -45,7 +46,7 @@ Shader "MMD/Transparent/PMDMaterial"
 		Blend SrcAlpha OneMinusSrcAlpha
 		AlphaTest Greater 0.0
 		CGPROGRAM
-		#pragma surface surf MMD keepalpha
+		#pragma surface surf MMD alpha:fade keepalpha
 		#pragma multi_compile SELFSHADOW_OFF SELFSHADOW_ON
 		#include "MeshPmdMaterialSurface.cginc"
 		ENDCG
@@ -56,7 +57,7 @@ Shader "MMD/Transparent/PMDMaterial"
 		Blend SrcAlpha OneMinusSrcAlpha
 		AlphaTest Greater 0.0
 		CGPROGRAM
-		#pragma surface surf MMD keepalpha
+		#pragma surface surf MMD alpha:fade keepalpha
 		#include "MeshPmdMaterialSurface.cginc"
 		ENDCG
 		
@@ -80,6 +81,8 @@ Shader "MMD/Transparent/PMDMaterial"
 			ENDCG
 		}
 
+		UsePass "Hidden/LibMMD/TransparentAlpha/DOUBLE"
+        UsePass "Hidden/LibMMD/TransparentAlpha/DEPTH_DOUBLE"
 	}
 
 	// Other Environment

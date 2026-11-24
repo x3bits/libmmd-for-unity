@@ -1,0 +1,1 @@
+Copy MmdTransparencyRegression.cs to Assets/Editor in a Unity test project, then create Logs/MmdTransparency.request. Results are written to Logs/MmdTransparency.result. Validated with Unity 2022.3.62f3 (Built-in Render Pipeline).
