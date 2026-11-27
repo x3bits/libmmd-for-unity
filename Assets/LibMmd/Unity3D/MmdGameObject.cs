@@ -311,13 +311,11 @@ namespace LibMMD.Unity3D
         {
             var partMeshes = PartMeshes;
             LoadMaterials();
-            var modelRootTransform = new GameObject("Model").transform;
             for (var i = 0; i < partMeshes.Count; i++)
             {
                 var part = newMeshPart("Part" + i);
                 part.GetComponent<MeshFilter>().mesh = partMeshes[i];
                 var skinnedMeshRenderer = part.GetComponent<SkinnedMeshRenderer>();
-                skinnedMeshRenderer.rootBone = modelRootTransform;
                 skinnedMeshRenderer.material = _materials[i];
                 part.transform.SetParent(transform, false);
                 BuildBindpose(partMeshes[i], skinnedMeshRenderer, false);
@@ -908,6 +906,10 @@ namespace LibMMD.Unity3D
             mesh.bindposes = bindposes;
             smr.sharedMesh = mesh;
             smr.bones = _bones.Select(x => x.transform).ToArray();
+            smr.rootBone = _boneRootGameObject.transform;
+            // Runtime VMD/physics poses can leave the rest mesh's bounds.
+            // Keep skinning and bounds updating even after the mesh leaves view.
+            smr.updateWhenOffscreen = true;
             if (fillMaterials)
             {
                 smr.materials = _materials;

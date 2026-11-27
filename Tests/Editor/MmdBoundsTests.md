@@ -1,0 +1,1 @@
+Copy MmdBoundsTests.cs into Assets/Editor in a test project containing LibMmd. Run Unity with -batchmode -executeMethod MmdBoundsTests.Run. Results are written to Logs/MmdBounds.result. Validated with Unity 2022.3.62f3 (Built-in Render Pipeline).
